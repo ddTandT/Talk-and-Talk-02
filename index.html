@@ -1,33 +1,18 @@
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Messenger-style Chat</title>
+  <title>Messenger Chat</title>
   <style>
-    :root {
-      --bg: #f0f2f5;
-      --msg-you: #0084ff;
-      --msg-other: #f1f0f0;
-      --text-color: #000;
-    }
-    body.dark {
-      --bg: #18191a;
-      --msg-you: #3a3b3c;
-      --msg-other: #242526;
-      --text-color: #e4e6eb;
-    }
     body {
       margin: 0;
       font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-      background-color: var(--bg);
-      color: var(--text-color);
+      background-color: #f0f2f5;
       display: flex;
       justify-content: center;
       align-items: center;
       height: 100vh;
-      transition: background 0.3s, color 0.3s;
     }
     .chat-container {
       width: 400px;
@@ -39,97 +24,75 @@
       flex-direction: column;
       overflow: hidden;
     }
-    body.dark .chat-container {
-      background-color: #242526;
-    }
     .chat-header {
       background-color: #0084ff;
       color: white;
-      padding: 10px 15px;
+      padding: 15px;
+      text-align: center;
       font-size: 1.2em;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
+      font-weight: bold;
     }
     .chat-messages {
       flex: 1;
       padding: 15px;
       overflow-y: auto;
-      background-color: var(--bg);
-    }
-    .message {
-      margin-bottom: 10px;
-      display: flex;
-      flex-direction: column;
-      max-width: 80%;
-      word-wrap: break-word;
-    }
-    .message.you {
-      align-self: flex-end;
-      background-color: var(--msg-you);
-      color: white;
-      border-radius: 10px 10px 0 10px;
-      padding: 10px;
-    }
-    .message.other {
-      align-self: flex-start;
-      background-color: var(--msg-other);
-      color: var(--text-color);
-      border-radius: 10px 10px 10px 0;
-      padding: 10px;
-    }
-    .timestamp {
-      font-size: 0.75em;
-      margin-top: 3px;
-      opacity: 0.7;
-      text-align: right;
+      background-color: #e5ddd5;
     }
     .chat-input {
       display: flex;
-      flex-direction: column;
+      gap: 5px;
       padding: 10px;
       border-top: 1px solid #ccc;
       background-color: #f9f9f9;
     }
-    body.dark .chat-input {
-      background-color: #3a3b3c;
-    }
-    .chat-input input[type="text"] {
+    .chat-input input {
+      flex: 1;
       padding: 10px;
       border: 1px solid #ccc;
       border-radius: 20px;
       outline: none;
-      margin-bottom: 5px;
-    }
-    .chat-input input[type="file"] {
-      margin-bottom: 5px;
     }
     .chat-input button {
       background-color: #0084ff;
       color: white;
       border: none;
-      padding: 10px;
+      padding: 10px 15px;
       border-radius: 20px;
       cursor: pointer;
+    }
+    .message {
+      display: flex;
+      flex-direction: column;
+      margin-bottom: 10px;
+      padding: 10px;
+      border-radius: 12px;
+      max-width: 70%;
+      word-wrap: break-word;
+    }
+    .timestamp {
+      font-size: 0.7em;
+      opacity: 0.6;
+      margin-top: 2px;
+      align-self: flex-end;
     }
   </style>
 </head>
 <body>
 
 <div class="chat-container">
-  <div class="chat-header">
-    🔵 Messenger Chat
-    <button onclick="toggleTheme()" style="background:none;border:none;color:white;cursor:pointer;">🌙</button>
-  </div>
+  <div class="chat-header">🔵 Messenger Chat</div>
   <div id="messages" class="chat-messages"></div>
   <div class="chat-input">
     <input id="name" placeholder="Your name (optional)" />
+    <button id="saveNameBtn">Save Name</button>
+  </div>
+  <div class="chat-input">
     <input id="text" placeholder="Type a message..." />
-    <input id="image" type="file" accept="image/*" />
-    <button onclick="sendMessage()">Send</button>
+    <button id="sendBtn">Send</button>
   </div>
 </div>
 
+<!-- Firebase SDKs -->
 <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-database-compat.js"></script>
 
@@ -141,67 +104,89 @@
     projectId: "talk-and-talk-7e674",
     storageBucket: "talk-and-talk-7e674.appspot.com",
     messagingSenderId: "422714682356",
-    appId: "1:422714682356:web:5a6bf6ad1879a90cfa27a1"
+    appId: "1:422714682356:web:5a6bf6ad1879a90cfa27a1",
+    measurementId: "G-MXFY371PT0"
   };
 
   firebase.initializeApp(firebaseConfig);
   const db = firebase.database();
   const messagesRef = db.ref("messages");
 
-  let userName = "";
-
   function getUserName() {
-    if (!userName) {
-      const inputName = document.getElementById("name").value.trim();
-      userName = inputName || "Guest_" + Math.floor(Math.random() * 10000);
-      document.getElementById("name").value = userName;
+    return localStorage.getItem("chatUserName") || "";
+  }
+
+  function saveUserName(name) {
+    localStorage.setItem("chatUserName", name);
+  }
+
+  function generateColor(name) {
+    let hash = 0;
+    for (let i = 0; i < name.length; i++) {
+      hash = name.charCodeAt(i) + ((hash << 5) - hash);
     }
-    return userName;
+    const color = '#' + ((hash >> 24) & 0xFF).toString(16).padStart(2, '0') +
+                        ((hash >> 16) & 0xFF).toString(16).padStart(2, '0') +
+                        ((hash >> 8) & 0xFF).toString(16).padStart(2, '0');
+    return color.length === 7 ? color : "#ccc";
   }
 
   function sendMessage() {
-    const name = getUserName();
-    const text = document.getElementById("text").value.trim();
-    const imageInput = document.getElementById("image");
-    const file = imageInput.files[0];
-
-    const timestamp = new Date().toLocaleTimeString();
-
-    if (!text && !file) return;
-
-    if (file) {
-      const reader = new FileReader();
-      reader.onload = function(e) {
-        messagesRef.push({ name, text, image: e.target.result, timestamp });
-      };
-      reader.readAsDataURL(file);
-    } else {
-      messagesRef.push({ name, text, image: null, timestamp });
+    let name = getUserName();
+    if (!name) {
+      name = "Guest_" + Math.floor(Math.random() * 10000);
+      saveUserName(name);
+      document.getElementById("name").value = name;
     }
-
+    const text = document.getElementById("text").value.trim();
+    if (!text) return;
+    const timestamp = new Date().toISOString();
+    messagesRef.push({ name, text, timestamp });
     document.getElementById("text").value = "";
-    document.getElementById("image").value = "";
+  }
+
+  // Save name
+  document.getElementById("saveNameBtn").addEventListener("click", () => {
+    const nameInput = document.getElementById("name").value.trim();
+    if (nameInput) {
+      saveUserName(nameInput);
+      alert("Name saved as: " + nameInput);
+    }
+  });
+
+  // Event listeners
+  document.getElementById("sendBtn").addEventListener("click", sendMessage);
+  document.getElementById("text").addEventListener("keydown", (e) => {
+    if (e.key === "Enter") sendMessage();
+  });
+
+  // Load name from storage
+  window.addEventListener("load", () => {
+    const saved = getUserName();
+    if (saved) document.getElementById("name").value = saved;
+  });
+
+  function formatTime(isoString) {
+    const date = new Date(isoString);
+    return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   }
 
   messagesRef.on("child_added", (snapshot) => {
     const msg = snapshot.val();
-    const currentUser = getUserName();
+    const currentName = getUserName();
     const el = document.createElement("div");
-    el.className = "message " + (msg.name === currentUser ? "you" : "other");
-
-    let content = msg.text || "";
-    if (msg.image) {
-      content += `<br><img src="${msg.image}" alt="image" style="max-width: 100%; border-radius: 10px; margin-top: 5px;" />`;
-    }
-
-    el.innerHTML = content + `<div class="timestamp">${msg.name === currentUser ? "✔ Sent • " : ""}${msg.timestamp}</div>`;
+    el.className = "message";
+    const bg = msg.name === currentName ? "#0084ff" : generateColor(msg.name);
+    const color = msg.name === currentName ? "#fff" : "#000";
+    const borderRadius = msg.name === currentName ? "10px 10px 0 10px" : "10px 10px 10px 0";
+    el.style.backgroundColor = bg;
+    el.style.color = color;
+    el.style.alignSelf = msg.name === currentName ? "flex-end" : "flex-start";
+    el.style.borderRadius = borderRadius;
+    el.innerHTML = `<strong>${msg.name}</strong>: ${msg.text}<div class="timestamp">${formatTime(msg.timestamp)}</div>`;
     document.getElementById("messages").appendChild(el);
     document.getElementById("messages").scrollTop = document.getElementById("messages").scrollHeight;
   });
-
-  function toggleTheme() {
-    document.body.classList.toggle("dark");
-  }
 </script>
 
 </body>
