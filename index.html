@@ -40,12 +40,13 @@
     }
     .chat-input {
       display: flex;
+      flex-wrap: wrap;
       gap: 5px;
       padding: 10px;
       border-top: 1px solid #ccc;
       background-color: #f9f9f9;
     }
-    .chat-input input {
+    .chat-input input[type="text"] {
       flex: 1;
       padding: 10px;
       border: 1px solid #ccc;
@@ -82,7 +83,6 @@
   </style>
 </head>
 <body>
-
 <div class="chat-container">
   <div class="chat-header">🔵 Messenger Chat</div>
   <div id="messages" class="chat-messages"></div>
@@ -91,7 +91,8 @@
     <button id="saveNameBtn">Save Name</button>
   </div>
   <div class="chat-input">
-    <input id="text" placeholder="Type a message..." />
+    <input id="text" type="text" placeholder="Type a message..." />
+    <input id="fileInput" type="file" />
     <button id="sendBtn">Send</button>
   </div>
 </div>
@@ -99,7 +100,6 @@
 <!-- Firebase SDKs -->
 <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-database-compat.js"></script>
-
 <script>
   const firebaseConfig = {
     apiKey: "AIzaSyDTixIh_aI5vszcxIT2unf31h9Iu92AdzI",
@@ -108,10 +108,8 @@
     projectId: "talk-and-talk-7e674",
     storageBucket: "talk-and-talk-7e674.appspot.com",
     messagingSenderId: "422714682356",
-    appId: "1:422714682356:web:5a6bf6ad1879a90cfa27a1",
-    measurementId: "G-MXFY371PT0"
+    appId: "1:422714682356:web:5a6bf6ad1879a90cfa27a1"
   };
-
   firebase.initializeApp(firebaseConfig);
   const db = firebase.database();
   const messagesRef = db.ref("messages");
@@ -124,32 +122,45 @@
     localStorage.setItem("chatUserName", name);
   }
 
+  function formatTime(isoString) {
+    const date = new Date(isoString);
+    return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  }
+
   function generateColor(name) {
+    const colors = ["#dcf8c6", "#fceeb5", "#e2f0cb", "#d2e3fc", "#ffd6d6"];
     let hash = 0;
-    for (let i = 0; i < name.length; i++) {
-      hash = name.charCodeAt(i) + ((hash << 5) - hash);
-    }
-    const color = '#' + ((hash >> 24) & 0xFF).toString(16).padStart(2, '0') +
-                        ((hash >> 16) & 0xFF).toString(16).padStart(2, '0') +
-                        ((hash >> 8) & 0xFF).toString(16).padStart(2, '0');
-    return color.length === 7 ? color : "#ccc";
+    for (let i = 0; i < name.length; i++) hash = name.charCodeAt(i) + ((hash << 5) - hash);
+    return colors[Math.abs(hash) % colors.length];
   }
 
   function sendMessage() {
-    let name = getUserName();
-    if (!name) {
-      name = "Guest_" + Math.floor(Math.random() * 10000);
-      saveUserName(name);
-      document.getElementById("name").value = name;
-    }
+    const name = getUserName() || "Guest_" + Math.floor(Math.random() * 10000);
+    saveUserName(name);
+    document.getElementById("name").value = name;
     const text = document.getElementById("text").value.trim();
-    if (!text) return;
+    const fileInput = document.getElementById("fileInput");
     const timestamp = new Date().toISOString();
-    messagesRef.push({ name, text, timestamp });
+
+    if (!text && !fileInput.files.length) return;
+
+    const messageData = { name, timestamp };
+    if (text) messageData.text = text;
+    if (fileInput.files.length) {
+      const reader = new FileReader();
+      reader.onload = function (e) {
+        messageData.file = e.target.result;
+        messageData.fileName = fileInput.files[0].name;
+        messagesRef.push(messageData);
+      };
+      reader.readAsDataURL(fileInput.files[0]);
+    } else {
+      messagesRef.push(messageData);
+    }
     document.getElementById("text").value = "";
+    fileInput.value = "";
   }
 
-  // Save name
   document.getElementById("saveNameBtn").addEventListener("click", () => {
     const nameInput = document.getElementById("name").value.trim();
     if (nameInput) {
@@ -157,45 +168,32 @@
       alert("Name saved as: " + nameInput);
     }
   });
-
-  // Event listeners
   document.getElementById("sendBtn").addEventListener("click", sendMessage);
   document.getElementById("text").addEventListener("keydown", (e) => {
     if (e.key === "Enter") sendMessage();
   });
-
-  // Load name from storage
   window.addEventListener("load", () => {
     const saved = getUserName();
     if (saved) document.getElementById("name").value = saved;
   });
-
-  function formatTime(isoString) {
-    const date = new Date(isoString);
-    return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-  }
 
   messagesRef.on("child_added", (snapshot) => {
     const msg = snapshot.val();
     const currentName = getUserName();
     const el = document.createElement("div");
     el.className = "message";
-    const bg = msg.name === currentName ? "#0084ff" : generateColor(msg.name);
-    const color = msg.name === currentName ? "#fff" : "#000";
-    const borderRadius = msg.name === currentName ? "10px 10px 0 10px" : "10px 10px 10px 0";
-    el.style.backgroundColor = bg;
-    el.style.color = color;
+    el.style.backgroundColor = msg.name === currentName ? "#0084ff" : generateColor(msg.name);
+    el.style.color = msg.name === currentName ? "#fff" : "#000";
     el.style.alignSelf = msg.name === currentName ? "flex-end" : "flex-start";
-    el.style.borderRadius = borderRadius;
     el.innerHTML = `
       <div class="username">${msg.name}</div>
-      <div>${msg.text}</div>
+      ${msg.text ? `<div>${msg.text}</div>` : ""}
+      ${msg.file ? `<div><a href="${msg.file}" target="_blank">📎 ${msg.fileName}</a></div>` : ""}
       <div class="timestamp">${formatTime(msg.timestamp)}</div>
     `;
     document.getElementById("messages").appendChild(el);
     document.getElementById("messages").scrollTop = document.getElementById("messages").scrollHeight;
   });
 </script>
-
 </body>
 </html>
