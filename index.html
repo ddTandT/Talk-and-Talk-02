@@ -1,0 +1,208 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Messenger-style Chat</title>
+  <style>
+    :root {
+      --bg: #f0f2f5;
+      --msg-you: #0084ff;
+      --msg-other: #f1f0f0;
+      --text-color: #000;
+    }
+    body.dark {
+      --bg: #18191a;
+      --msg-you: #3a3b3c;
+      --msg-other: #242526;
+      --text-color: #e4e6eb;
+    }
+    body {
+      margin: 0;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background-color: var(--bg);
+      color: var(--text-color);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+      transition: background 0.3s, color 0.3s;
+    }
+    .chat-container {
+      width: 400px;
+      height: 600px;
+      background-color: #fff;
+      border-radius: 10px;
+      box-shadow: 0 0 15px rgba(0,0,0,0.1);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+    body.dark .chat-container {
+      background-color: #242526;
+    }
+    .chat-header {
+      background-color: #0084ff;
+      color: white;
+      padding: 10px 15px;
+      font-size: 1.2em;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .chat-messages {
+      flex: 1;
+      padding: 15px;
+      overflow-y: auto;
+      background-color: var(--bg);
+    }
+    .message {
+      margin-bottom: 10px;
+      display: flex;
+      flex-direction: column;
+      max-width: 80%;
+      word-wrap: break-word;
+    }
+    .message.you {
+      align-self: flex-end;
+      background-color: var(--msg-you);
+      color: white;
+      border-radius: 10px 10px 0 10px;
+      padding: 10px;
+    }
+    .message.other {
+      align-self: flex-start;
+      background-color: var(--msg-other);
+      color: var(--text-color);
+      border-radius: 10px 10px 10px 0;
+      padding: 10px;
+    }
+    .timestamp {
+      font-size: 0.75em;
+      margin-top: 3px;
+      opacity: 0.7;
+      text-align: right;
+    }
+    .chat-input {
+      display: flex;
+      flex-direction: column;
+      padding: 10px;
+      border-top: 1px solid #ccc;
+      background-color: #f9f9f9;
+    }
+    body.dark .chat-input {
+      background-color: #3a3b3c;
+    }
+    .chat-input input[type="text"] {
+      padding: 10px;
+      border: 1px solid #ccc;
+      border-radius: 20px;
+      outline: none;
+      margin-bottom: 5px;
+    }
+    .chat-input input[type="file"] {
+      margin-bottom: 5px;
+    }
+    .chat-input button {
+      background-color: #0084ff;
+      color: white;
+      border: none;
+      padding: 10px;
+      border-radius: 20px;
+      cursor: pointer;
+    }
+  </style>
+</head>
+<body>
+
+<div class="chat-container">
+  <div class="chat-header">
+    🔵 Messenger Chat
+    <button onclick="toggleTheme()" style="background:none;border:none;color:white;cursor:pointer;">🌙</button>
+  </div>
+  <div id="messages" class="chat-messages"></div>
+  <div class="chat-input">
+    <input id="name" placeholder="Your name (optional)" />
+    <input id="text" placeholder="Type a message..." />
+    <input id="image" type="file" accept="image/*" />
+    <button onclick="sendMessage()">Send</button>
+  </div>
+</div>
+
+<script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-database-compat.js"></script>
+
+<script>
+  const firebaseConfig = {
+    apiKey: "AIzaSyDTixIh_aI5vszcxIT2unf31h9Iu92AdzI",
+    authDomain: "talk-and-talk-7e674.firebaseapp.com",
+    databaseURL: "https://talk-and-talk-7e674-default-rtdb.firebaseio.com",
+    projectId: "talk-and-talk-7e674",
+    storageBucket: "talk-and-talk-7e674.appspot.com",
+    messagingSenderId: "422714682356",
+    appId: "1:422714682356:web:5a6bf6ad1879a90cfa27a1"
+  };
+
+  firebase.initializeApp(firebaseConfig);
+  const db = firebase.database();
+  const messagesRef = db.ref("messages");
+
+  let userName = "";
+
+  function getUserName() {
+    if (!userName) {
+      const inputName = document.getElementById("name").value.trim();
+      userName = inputName || "Guest_" + Math.floor(Math.random() * 10000);
+      document.getElementById("name").value = userName;
+    }
+    return userName;
+  }
+
+  function sendMessage() {
+    const name = getUserName();
+    const text = document.getElementById("text").value.trim();
+    const imageInput = document.getElementById("image");
+    const file = imageInput.files[0];
+
+    const timestamp = new Date().toLocaleTimeString();
+
+    if (!text && !file) return;
+
+    if (file) {
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        messagesRef.push({ name, text, image: e.target.result, timestamp });
+      };
+      reader.readAsDataURL(file);
+    } else {
+      messagesRef.push({ name, text, image: null, timestamp });
+    }
+
+    document.getElementById("text").value = "";
+    document.getElementById("image").value = "";
+  }
+
+  messagesRef.on("child_added", (snapshot) => {
+    const msg = snapshot.val();
+    const currentUser = getUserName();
+    const el = document.createElement("div");
+    el.className = "message " + (msg.name === currentUser ? "you" : "other");
+
+    let content = msg.text || "";
+    if (msg.image) {
+      content += `<br><img src="${msg.image}" alt="image" style="max-width: 100%; border-radius: 10px; margin-top: 5px;" />`;
+    }
+
+    el.innerHTML = content + `<div class="timestamp">${msg.name === currentUser ? "✔ Sent • " : ""}${msg.timestamp}</div>`;
+    document.getElementById("messages").appendChild(el);
+    document.getElementById("messages").scrollTop = document.getElementById("messages").scrollHeight;
+  });
+
+  function toggleTheme() {
+    document.body.classList.toggle("dark");
+  }
+</script>
+
+</body>
+</html>
