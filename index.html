@@ -75,6 +75,10 @@
       margin-top: 2px;
       align-self: flex-end;
     }
+    .username {
+      font-weight: bold;
+      margin-bottom: 4px;
+    }
   </style>
 </head>
 <body>
@@ -183,7 +187,11 @@
     el.style.color = color;
     el.style.alignSelf = msg.name === currentName ? "flex-end" : "flex-start";
     el.style.borderRadius = borderRadius;
-    el.innerHTML = `<strong>${msg.name}</strong>: ${msg.text}<div class="timestamp">${formatTime(msg.timestamp)}</div>`;
+    el.innerHTML = `
+      <div class="username">${msg.name}</div>
+      <div>${msg.text}</div>
+      <div class="timestamp">${formatTime(msg.timestamp)}</div>
+    `;
     document.getElementById("messages").appendChild(el);
     document.getElementById("messages").scrollTop = document.getElementById("messages").scrollHeight;
   });
